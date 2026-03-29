@@ -1,7 +1,6 @@
 import pandas as pd
 import torch as tc
 import torchvision as tv
-import torchvision.transforms.v2 as v2
 from torchvision import tv_tensors
 
 
