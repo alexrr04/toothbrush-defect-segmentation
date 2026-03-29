@@ -89,7 +89,7 @@ def train_model(
         if avg_test_loss < best_test_loss:
             best_test_loss = avg_test_loss
             tc.save(model.state_dict(), save_path)
-            print(f"*** Validation loss improved! Saved model to {save_path} ***")
+            print(f"*** Testing loss improved! Saved model to {save_path} ***")
 
     print("\nTraining Complete!")
     print(f"Best model weights are saved at: {save_path}")
@@ -102,11 +102,11 @@ def main():
     dataset_root = "data/toothbrush_dataset"
     train_csv = os.path.join(dataset_root, "training.csv")
     test_csv = os.path.join(dataset_root, "testing.csv")
-    weights_dir = "weights"
+    weights_dir = "trained_models"
     os.makedirs(weights_dir, exist_ok=True)
 
     batch_size = 16
-    epochs = 3  # Quick testing
+    epochs = 100
     learning_rate = 1e-4
 
     device = tc.device("cuda" if tc.cuda.is_available() else "cpu")

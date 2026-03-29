@@ -9,7 +9,7 @@ from src.unet import UNet
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = UNet(in_channels=3, out_channels=1)
 
-weights_path = "weights/best_unet_model.pth"
+weights_path = "trained_models/best_unet_model.pth"
 
 if os.path.exists(weights_path):
     model.load_state_dict(torch.load(weights_path, map_location=device))
