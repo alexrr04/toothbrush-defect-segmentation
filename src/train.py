@@ -27,14 +27,14 @@ def train_model(
     Args:
         model: The U-Net model to train
         train_loader: DataLoader for training data
-        test_loader: DataLoader for validation data
+        test_loader: DataLoader for testing data
         criterion: Loss function
         optimizer: Optimizer
         device: Device to run training on (cpu or cuda)
         epochs: Number of epochs to train
         weights_dir: Directory to save model weights
     """
-    best_val_loss = float("inf")
+    best_test_loss = float("inf")
     save_path = os.path.join(weights_dir, "best_unet_model.pth")
 
     print("\nStarting Training...")
@@ -64,30 +64,30 @@ def train_model(
 
         avg_train_loss = train_loss / len(train_loader)
 
-        # -- Validation Phase --
+        # -- Testing Phase --
         model.eval()
-        val_loss = 0.0
+        test_loss = 0.0
 
-        val_loop = tqdm(
+        test_loop = tqdm(
             test_loader, desc=f"Epoch {epoch + 1}/{epochs} [Test]", leave=False
         )
         with tc.no_grad():
-            for images, masks in val_loop:
+            for images, masks in test_loop:
                 images, masks = images.to(device), masks.to(device)
 
                 predictions = model(images)
                 loss = criterion(predictions, masks)
-                val_loss += loss.item()
+                test_loss += loss.item()
 
-        avg_val_loss = val_loss / len(test_loader)
+        avg_test_loss = test_loss / len(test_loader)
 
         print(
-            f"Epoch {epoch + 1}/{epochs} - Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}"
+            f"Epoch {epoch + 1}/{epochs} - Train Loss: {avg_train_loss:.4f} | Test Loss: {avg_test_loss:.4f}"
         )
 
         # -- Checkpointing --
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
+        if avg_test_loss < best_test_loss:
+            best_test_loss = avg_test_loss
             tc.save(model.state_dict(), save_path)
             print(f"*** Validation loss improved! Saved model to {save_path} ***")
 
