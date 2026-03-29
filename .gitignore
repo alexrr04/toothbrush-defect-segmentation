@@ -211,3 +211,6 @@ data
 
 # Trained models
 trained_models
+
+# submissions 
+*.zip
