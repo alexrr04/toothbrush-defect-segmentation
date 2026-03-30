@@ -1,8 +1,4 @@
+numpy
 torch
 torchvision
-tqdm
-pandas
-numpy
-scikit-learn
-gdown
-opencv-python
+scipy

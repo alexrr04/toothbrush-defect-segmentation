@@ -1,25 +1,63 @@
 import os
 
-import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
+from scipy import ndimage
 
 from src.unet import UNet
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = UNet(in_channels=3, out_channels=1)
 
-weights_path = "trained_models/best_unet_model.pth"
 
-if os.path.exists(weights_path):
-    model.load_state_dict(torch.load(weights_path, map_location=device))
+def _resolve_weights_path() -> str | None:
+    """Try to locate the trained weights regardless of current working directory."""
+    candidates = [
+        os.path.join(_BASE_DIR, "trained_models", "best_unet_model.pth"),
+        os.path.join(os.getcwd(), "trained_models", "best_unet_model.pth"),
+        os.path.join(_BASE_DIR, "best_unet_model.pth"),
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    return None
+
+
+_weights_path = _resolve_weights_path()
+if _weights_path is not None:
+    model.load_state_dict(torch.load(_weights_path, map_location=device))
 else:
     print(
-        f"Warning: Could not find {weights_path}. Predictions will use random weights."
+        "Warning: Could not find best_unet_model.pth. Predictions will use random weights."
     )
 
 model.to(device)
 model.eval()
+
+
+def _apply_postprocessing(binary_mask: np.ndarray) -> np.ndarray:
+    """
+    Apply morphological operations to clean up predictions:
+    1. Median filter
+    2. Erosion
+    3. Dilation
+    """
+    filtered = ndimage.median_filter(binary_mask, size=3)
+
+    eroded = ndimage.binary_erosion(
+        filtered > 0, structure=np.ones((3, 3), dtype=np.uint8)
+    ).astype(np.uint8)
+
+    dilated = ndimage.binary_dilation(
+        eroded, structure=np.ones((3, 3), dtype=np.uint8)
+    ).astype(np.uint8)
+
+    return dilated * 255
 
 
 def predict(image):
@@ -32,34 +70,53 @@ def predict(image):
     Returns:
         Binary mask as numpy array of shape (H, W), uint8 with values 0 or 255.
     """
+    if not isinstance(image, np.ndarray):
+        image = np.asarray(image)
+
     original_h, original_w = image.shape[:2]
 
-    if len(image.shape) == 2:
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-    elif image.shape[2] == 4:
-        image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+    # Accept grayscale (H, W) or color (H, W, C). If RGBA, drop alpha.
+    if image.ndim == 2:
+        image = np.repeat(image[:, :, None], 3, axis=2)
+    elif image.ndim == 3:
+        if image.shape[2] == 4:
+            image = image[:, :, :3]
+        elif image.shape[2] == 3:
+            pass
+        else:
+            raise ValueError(f"Unsupported channel count: {image.shape[2]}")
+    else:
+        raise ValueError(f"Unsupported image shape: {image.shape}")
 
-    input_size = (256, 256)
-    resized_img = cv2.resize(image, input_size)
+    # Convert to float32 tensor, robust to either uint8 [0..255] or float [0..1].
+    img = image.astype(np.float32)
+    max_val = float(np.max(img)) if img.size else 0.0
+    if max_val > 1.5:
+        img = img / 255.0
 
-    img_tensor = torch.from_numpy(resized_img).float() / 255.0
-    img_tensor = img_tensor.permute(2, 0, 1)
-    img_tensor = img_tensor.unsqueeze(0)
-    img_tensor = img_tensor.to(device)
+    img_tensor = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0).to(device)
+
+    # Resize to the network input size used during training.
+    img_tensor = F.interpolate(
+        img_tensor, size=(256, 256), mode="bilinear", align_corners=False
+    )
 
     with torch.no_grad():
         logits = model(img_tensor)
-
-        # Convert logits into probabilities (0.0 to 1.0)
         probs = torch.sigmoid(logits)
 
-    probs_np = probs.squeeze().cpu().numpy()
+    # Threshold to a binary mask.
+    threshold = 0.45
+    binary = (probs > threshold).to(torch.uint8)  # shape: (1, 1, 256, 256)
 
-    threshold = 0.5
-    binary_mask = np.where(probs_np > threshold, 255, 0).astype(np.uint8)
-
-    final_mask = cv2.resize(
-        binary_mask, (original_w, original_h), interpolation=cv2.INTER_NEAREST
+    # Resize back to original image size using nearest-neighbor.
+    binary = F.interpolate(
+        binary.float(), size=(original_h, original_w), mode="nearest"
     )
+    binary = binary.to(torch.uint8).squeeze(0).squeeze(0)
 
-    return final_mask
+    # Convert to numpy and apply post-processing to clean up predictions.
+    mask_np = (binary.cpu().numpy() * 255).astype(np.uint8)
+    mask_cleaned = _apply_postprocessing(mask_np)
+
+    return mask_cleaned

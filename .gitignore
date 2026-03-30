@@ -214,3 +214,6 @@ trained_models
 
 # submissions 
 *.zip
+
+# Problem statement pdf
+AVS_lab4-5.pdf

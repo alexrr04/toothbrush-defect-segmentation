@@ -15,7 +15,7 @@ def main():
             ]
 
             for file in files:
-                if file.startswith(".") or file == submission_filename:
+                if file.startswith(".") or file == submission_filename or file.endswith(".pdf"):
                     continue
 
                 file_path = os.path.join(root, file)
