@@ -1,13 +1,17 @@
 import os
+import sys
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from scipy import ndimage
 
-from src.unet import UNet
-
+# Ensure the submission root (directory of this file) is on sys.path.
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if _BASE_DIR not in sys.path:
+    sys.path.insert(0, _BASE_DIR)
+
+from src.unet import UNet
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = UNet(in_channels=3, out_channels=1)
@@ -24,6 +28,11 @@ def _resolve_weights_path() -> str | None:
     for path in candidates:
         if os.path.exists(path):
             return path
+
+    # Last resort: search a few levels deep from the extracted submission root.
+    for root, _dirs, files in os.walk(_BASE_DIR):
+        if "best_unet_model.pth" in files:
+            return os.path.join(root, "best_unet_model.pth")
 
     return None
 

@@ -105,8 +105,8 @@ def main():
     weights_dir = "trained_models"
     os.makedirs(weights_dir, exist_ok=True)
 
-    batch_size = 16
-    epochs = 100
+    batch_size = 8
+    epochs = 200
     learning_rate = 1e-4
 
     device = tc.device("cuda" if tc.cuda.is_available() else "cpu")
@@ -152,7 +152,10 @@ def main():
 
     # BCEWithLogitsLoss combines a Sigmoid layer and Binary Cross Entropy.
     # It expects raw logits from the model and target masks of 0s and 1s.
-    criterion = nn.BCEWithLogitsLoss()
+    # pos_weight=2.0 addresses class imbalance (2:1 good:defective ratio):
+    # penalizes false negatives (missed defects) more heavily.
+    pos_weight = tc.tensor([2.0], device=device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # --- 5. Training ---
