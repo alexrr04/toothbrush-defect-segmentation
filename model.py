@@ -29,7 +29,6 @@ def _resolve_weights_path() -> str | None:
         if os.path.exists(path):
             return path
 
-    # Last resort: search a few levels deep from the extracted submission root.
     for root, _dirs, files in os.walk(_BASE_DIR):
         if "best_unet_model.pth" in files:
             return os.path.join(root, "best_unet_model.pth")
@@ -115,8 +114,8 @@ def predict(image):
         probs = torch.sigmoid(logits)
 
     # Threshold to a binary mask.
-    threshold = 0.70
-    binary = (probs > threshold).to(torch.uint8)  # shape: (1, 1, 256, 256)
+    threshold = 0.35
+    binary = (probs > threshold).to(torch.uint8)
 
     # Resize back to original image size using nearest-neighbor.
     binary = F.interpolate(

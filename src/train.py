@@ -43,7 +43,6 @@ def train_model(
         model.train()
         train_loss = 0.0
 
-        # tqdm adds a nice progress bar to your terminal/notebook
         train_loop = tqdm(
             train_loader, desc=f"Epoch {epoch + 1}/{epochs} [Train]", leave=False
         )
@@ -55,9 +54,9 @@ def train_model(
             loss = criterion(predictions, masks)
 
             # 2. Backward pass & optimize
-            optimizer.zero_grad()  # Clear old gradients
-            loss.backward()  # Compute new gradients
-            optimizer.step()  # Update weights
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
             train_loss += loss.item()
             train_loop.set_postfix(loss=loss.item())
@@ -106,19 +105,36 @@ def main():
     os.makedirs(weights_dir, exist_ok=True)
 
     batch_size = 8
-    epochs = 200
+    epochs = 400
     learning_rate = 1e-4
 
     device = tc.device("cuda" if tc.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # --- 2. Data Transforms ---
+    # Enhanced augmentations to improve model robustness and generalization
     train_transforms = v2.Compose(
         [
             v2.Resize((256, 256), antialias=True),
+            v2.RandomApply(
+                [v2.RandomRotation(degrees=15)], p=0.5
+            ),  # Random rotation ±15°
+            v2.RandomApply(
+                [v2.RandomAffine(degrees=0, translate=(0.1, 0.1))], p=0.5
+            ),  # Random translation
             v2.RandomHorizontalFlip(p=0.5),  # Get more variety
             v2.RandomVerticalFlip(p=0.5),  # Get more variety
-            v2.ColorJitter(brightness=0.2, contrast=0.2),  # Prevent overfitting
+            v2.RandomApply(
+                [
+                    v2.ColorJitter(
+                        brightness=0.2, contrast=0.2, saturation=0.1, hue=0.05
+                    )
+                ],
+                p=0.7,
+            ),  # Enhanced color distortion
+            v2.RandomApply(
+                [v2.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.3
+            ),  # Slight blur for robustness
         ]
     )
 
@@ -134,7 +150,6 @@ def main():
     )
     test_dataset = ToothbrushSegmentationDataset(test_csv, transforms=test_transforms)
 
-    # num_workers=2 speeds up data loading. Set to 0 if running on Windows causes multiprocessing errors.
     train_loader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=2
     )
@@ -147,13 +162,8 @@ def main():
     )
 
     # --- 4. Model, Loss, and Optimizer ---
-    # Instantiate our custom U-Net from unet.py
     model = UNet(in_channels=3, out_channels=1).to(device)
 
-    # BCEWithLogitsLoss combines a Sigmoid layer and Binary Cross Entropy.
-    # It expects raw logits from the model and target masks of 0s and 1s.
-    # pos_weight=2.0 addresses class imbalance (2:1 good:defective ratio):
-    # penalizes false negatives (missed defects) more heavily.
     pos_weight = tc.tensor([2.0], device=device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
