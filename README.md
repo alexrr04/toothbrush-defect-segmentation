@@ -55,7 +55,7 @@ This will:
 Train the U-Net model for segmentation:
 
 ```bash
-python -m src.train
+python src/train.py
 ```
 
 The training pipeline will:
@@ -66,21 +66,6 @@ The training pipeline will:
 - Display per-epoch training and test metrics
 
 **Requirements:** Requires full dev setup (`requirements-dev.txt`)
-
-### 4. Test and Verify
-
-Run local predictions on sample images:
-
-```bash
-python local_check_predict.py
-```
-
-This will:
-
-- Load the trained model
-- Make predictions on 5 sample images from the dataset
-- Display prediction statistics (shape, unique values, white ratio)
-- Verify model is working correctly
 
 ## Project Structure
 
@@ -95,7 +80,6 @@ This will:
 │   └── best_unet_model.pth    # Best trained model
 ├── fetch_data.py              # Download dataset from Google Drive
 ├── prepare_data.py            # Prepare and split dataset
-├── local_check_predict.py      # Test predictions locally
 ├── model.py                   # Model loading and inference utilities
 ├── requirements.txt           # Minimal dependencies
 └── requirements-dev.txt       # Full development dependencies
