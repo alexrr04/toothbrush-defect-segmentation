@@ -1,10 +1,16 @@
+import csv
+import json
 import os
+from argparse import ArgumentParser
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn.functional as F
 from PIL import Image
 
-import model
+from src.unet import UNet
 
 
 def load_ground_truth_mask(mask_path: str) -> np.ndarray:
@@ -43,14 +49,52 @@ def compute_f1(pred: np.ndarray, gt: np.ndarray) -> float:
 
 
 def main():
-    # Load test CSV
-    test_csv = os.path.join("data", "toothbrush_dataset", "testing.csv")
-    if not os.path.exists(test_csv):
-        print(f"Error: {test_csv} not found. Run prepare_data.py first.")
+    parser = ArgumentParser(description="Tune inference threshold on a chosen split.")
+    parser.add_argument(
+        "--csv",
+        default=os.path.join("data", "toothbrush_dataset", "validation.csv"),
+        help="CSV split used for threshold tuning (default: validation.csv)",
+    )
+    parser.add_argument(
+        "--weights",
+        default=os.path.join("trained_models", "best_unet_model.pth"),
+        help="Path to model weights checkpoint to evaluate.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Directory where threshold tuning artifacts are stored. Defaults to checkpoint directory.",
+    )
+    args = parser.parse_args()
+
+    split_csv = args.csv
+    if not os.path.exists(split_csv):
+        print(f"Error: {split_csv} not found. Run prepare_data.py first.")
         return
 
-    df = pd.read_csv(test_csv)
-    print(f"Loaded {len(df)} test images from {test_csv}")
+    weights_path = args.weights
+    if not os.path.exists(weights_path):
+        print(f"Error: Weights file not found: {weights_path}")
+        return
+
+    output_dir = args.output_dir or os.path.dirname(weights_path) or "."
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net = UNet(in_channels=3, out_channels=1).to(device)
+    net.load_state_dict(torch.load(weights_path, map_location=device))
+    net.eval()
+
+    print(f"Using device: {device}")
+    print(f"Loaded model weights: {weights_path}")
+
+    csv_name = os.path.basename(split_csv).lower()
+    if csv_name == "testing.csv":
+        print("Warning: tuning on testing.csv can overfit local evaluation.")
+
+    df = pd.read_csv(split_csv)
+    print(f"Loaded {len(df)} images from {split_csv}")
 
     # Test thresholds from 0.1 to 0.9
     thresholds = np.arange(0.1, 1.0, 0.05)
@@ -73,24 +117,19 @@ def main():
             # For "good" images (no mask), gt is all zeros
             gt = np.zeros(img.shape[:2], dtype=np.uint8)
 
-        import torch
-        import torch.nn.functional as F
-
         h, w = img.shape[:2]
         img_f = img.astype(np.float32)
         max_val = float(np.max(img_f))
         if max_val > 1.5:
             img_f = img_f / 255.0
 
-        img_tensor = (
-            torch.from_numpy(img_f).permute(2, 0, 1).unsqueeze(0).to(model.device)
-        )
+        img_tensor = torch.from_numpy(img_f).permute(2, 0, 1).unsqueeze(0).to(device)
         img_tensor = F.interpolate(
             img_tensor, size=(256, 256), mode="bilinear", align_corners=False
         )
 
         with torch.no_grad():
-            logits = model.model(img_tensor)
+            logits = net(img_tensor)
             probs = torch.sigmoid(logits)
 
         # Resize back to original
@@ -131,8 +170,44 @@ def main():
 
     print("-" * 70)
     print(f"\n✅ BEST THRESHOLD: {best_threshold:.2f}")
-    print(f"   Mean IoU: {np.mean(results[best_threshold]['iou']):.4f}")
-    print(f"   Mean F1:  {np.mean(results[best_threshold]['f1']):.4f}")
+    best_iou = float(np.mean(results[best_threshold]["iou"]))
+    best_f1 = float(np.mean(results[best_threshold]["f1"]))
+    print(f"   Mean IoU: {best_iou:.4f}")
+    print(f"   Mean F1:  {best_f1:.4f}")
+
+    rows = []
+    for threshold in sorted(thresholds):
+        rows.append(
+            {
+                "threshold": float(threshold),
+                "mean_iou": float(np.mean(results[threshold]["iou"])),
+                "mean_f1": float(np.mean(results[threshold]["f1"])),
+            }
+        )
+
+    csv_path = output_dir_path / "threshold_results.csv"
+    with open(csv_path, "w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=["threshold", "mean_iou", "mean_f1"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+    best_path = output_dir_path / "best_threshold.json"
+    with open(best_path, "w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "weights_path": str(weights_path),
+                "csv_split": str(split_csv),
+                "best_threshold": float(best_threshold),
+                "mean_iou": best_iou,
+                "mean_f1": best_f1,
+            },
+            file,
+            indent=2,
+            sort_keys=True,
+        )
+
+    print(f"\nSaved threshold table to: {csv_path}")
+    print(f"Saved best threshold json to: {best_path}")
     print(f"\nUpdate threshold in model.py to {best_threshold:.2f}")
 
 

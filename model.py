@@ -114,7 +114,7 @@ def predict(image):
         probs = torch.sigmoid(logits)
 
     # Threshold to a binary mask.
-    threshold = 0.35
+    threshold = 0.7
     binary = (probs > threshold).to(torch.uint8)
 
     # Resize back to original image size using nearest-neighbor.

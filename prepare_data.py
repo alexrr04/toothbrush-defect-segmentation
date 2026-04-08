@@ -46,20 +46,32 @@ def main():
         dataset_cases, columns=["image_path", "mask_path", "is_defective"]
     )
 
-    # Split into Training (80%) and Testing/Validation (20%)
-    train_df, test_df = train_test_split(
+    # Split into Training (70%), Validation (10%), and Testing (20%)
+    train_val_df, test_df = train_test_split(
         df, test_size=0.2, random_state=42, stratify=df["is_defective"]
+    )
+    # 10/80 = 12.5% of the remaining data to end at 10% of full dataset.
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=0.125,
+        random_state=42,
+        stratify=train_val_df["is_defective"],
     )
 
     # Save to CSV in the root data folder
     dataset_root = "data/toothbrush_dataset"
     train_csv_path = os.path.join(dataset_root, "training.csv")
+    val_csv_path = os.path.join(dataset_root, "validation.csv")
     test_csv_path = os.path.join(dataset_root, "testing.csv")
 
     train_df.to_csv(train_csv_path, index=False)
+    val_df.to_csv(val_csv_path, index=False)
     test_df.to_csv(test_csv_path, index=False)
 
-    print(f"Success! Saved {len(train_df)} training and {len(test_df)} testing cases.")
+    print(
+        "Success! Saved "
+        f"{len(train_df)} training, {len(val_df)} validation, and {len(test_df)} testing cases."
+    )
 
 
 if __name__ == "__main__":

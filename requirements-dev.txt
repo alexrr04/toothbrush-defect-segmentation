@@ -2,3 +2,5 @@
 pandas
 scikit-learn
 tqdm
+pyyaml
+matplotlib
