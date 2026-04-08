@@ -1,0 +1,13 @@
+dataset_root: data/toothbrush_dataset
+batch_size: 8
+epochs: 400
+learning_rate: 0.0001
+early_stopping_patience: 40
+loss_name: bce_dice
+pos_weight: null
+output_root: /content/drive/MyDrive/avs-miniproject-1-runs
+run_name: bce_dice_baseline
+resume: false
+resume_checkpoint: null
+save_improvement_checkpoints: true
+cleanup_resume_checkpoint_on_success: true
