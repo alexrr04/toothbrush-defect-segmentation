@@ -3,11 +3,11 @@ batch_size: 8
 epochs: 400
 learning_rate: 0.0001
 early_stopping_patience: 40
-seed: 42
+seed: 2025
 loss_name: bce
 pos_weight: null
 output_root: /content/drive/MyDrive/avs-miniproject-1-runs
-run_name: bce_ablation
+run_name: bce_ablation_seed2025
 resume: false
 resume_checkpoint: null
 save_improvement_checkpoints: true

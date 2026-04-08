@@ -14,11 +14,10 @@ if _BASE_DIR not in sys.path:
 from src.unet import UNet
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = UNet(in_channels=3, out_channels=1)
 
 
-def _resolve_weights_path() -> str | None:
-    """Try to locate the trained weights regardless of current working directory."""
+def _resolve_single_weights_path() -> str | None:
+    """Try to locate one trained checkpoint regardless of current working directory."""
     candidates = [
         os.path.join(_BASE_DIR, "trained_models", "best_unet_model.pth"),
         os.path.join(os.getcwd(), "trained_models", "best_unet_model.pth"),
@@ -36,16 +35,69 @@ def _resolve_weights_path() -> str | None:
     return None
 
 
-_weights_path = _resolve_weights_path()
-if _weights_path is not None:
-    model.load_state_dict(torch.load(_weights_path, map_location=device))
+def _resolve_weights_paths() -> list[str]:
+    """Resolve one or more checkpoints for optional ensemble averaging."""
+    paths = []
+
+    # Optional text file with one checkpoint path per line.
+    ensemble_file = os.path.join(_BASE_DIR, "trained_models", "ensemble_weights.txt")
+    if os.path.exists(ensemble_file):
+        with open(ensemble_file, "r", encoding="utf-8") as file:
+            for raw_line in file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                candidate = line
+                if not os.path.isabs(candidate):
+                    candidate = os.path.join(_BASE_DIR, candidate)
+                if os.path.exists(candidate):
+                    paths.append(candidate)
+
+    # Optional env override for local testing.
+    env_paths = os.environ.get("AVS_ENSEMBLE_WEIGHTS", "").strip()
+    if env_paths:
+        for entry in env_paths.split(","):
+            candidate = entry.strip()
+            if not candidate:
+                continue
+            if not os.path.isabs(candidate):
+                candidate = os.path.join(_BASE_DIR, candidate)
+            if os.path.exists(candidate):
+                paths.append(candidate)
+
+    if paths:
+        # Keep insertion order and remove duplicates.
+        return list(dict.fromkeys(paths))
+
+    single_path = _resolve_single_weights_path()
+    if single_path is not None:
+        return [single_path]
+    return []
+
+
+def _load_models(weights_paths: list[str]) -> list[UNet]:
+    loaded_models = []
+    for path in weights_paths:
+        net = UNet(in_channels=3, out_channels=1)
+        net.load_state_dict(torch.load(path, map_location=device))
+        net.to(device)
+        net.eval()
+        loaded_models.append(net)
+    return loaded_models
+
+
+_weights_paths = _resolve_weights_paths()
+if _weights_paths:
+    models = _load_models(_weights_paths)
+    print(f"Loaded {len(models)} model(s) for inference ensemble.")
 else:
     print(
-        "Warning: Could not find best_unet_model.pth. Predictions will use random weights."
+        "Warning: Could not find trained checkpoints. Predictions will use random weights."
     )
-
-model.to(device)
-model.eval()
+    fallback_model = UNet(in_channels=3, out_channels=1)
+    fallback_model.to(device)
+    fallback_model.eval()
+    models = [fallback_model]
 
 
 def _apply_postprocessing(binary_mask: np.ndarray) -> np.ndarray:
@@ -110,11 +162,18 @@ def predict(image):
     )
 
     with torch.no_grad():
-        logits = model(img_tensor)
-        probs = torch.sigmoid(logits)
+        logits_sum = None
+        for net in models:
+            logits = net(img_tensor)
+            if logits_sum is None:
+                logits_sum = logits
+            else:
+                logits_sum = logits_sum + logits
+        avg_logits = logits_sum / len(models)
+        probs = torch.sigmoid(avg_logits)
 
     # Threshold to a binary mask.
-    threshold = 0.7
+    threshold = 0.68
     binary = (probs > threshold).to(torch.uint8)
 
     # Resize back to original image size using nearest-neighbor.
