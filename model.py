@@ -11,9 +11,28 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
-from src.unet import UNet
+from src.unet import UNet  # noqa: E402
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _resolve_inference_threshold() -> float:
+    """Resolve binary threshold from env, defaulting to 0.65."""
+    raw = os.environ.get("AVS_THRESHOLD", "").strip()
+    if not raw:
+        return 0.65
+
+    try:
+        threshold = float(raw)
+    except ValueError:
+        print(f"Warning: invalid AVS_THRESHOLD={raw!r}. Using default 0.65.")
+        return 0.65
+
+    if threshold <= 0.0 or threshold >= 1.0:
+        print(f"Warning: AVS_THRESHOLD={threshold} outside (0, 1). Using default 0.65.")
+        return 0.65
+
+    return threshold
 
 
 def _resolve_single_weights_path() -> str | None:
@@ -87,12 +106,17 @@ def _load_models(weights_paths: list[str]) -> list[UNet]:
 
 
 _weights_paths = _resolve_weights_paths()
+_inference_threshold = _resolve_inference_threshold()
 if _weights_paths:
     models = _load_models(_weights_paths)
-    print(f"Loaded {len(models)} model(s) for inference ensemble.")
+    print(
+        f"Loaded {len(models)} model(s) for inference ensemble "
+        f"(threshold={_inference_threshold:.2f})."
+    )
 else:
     print(
-        "Warning: Could not find trained checkpoints. Predictions will use random weights."
+        "Warning: Could not find trained checkpoints. "
+        f"Predictions will use random weights (threshold={_inference_threshold:.2f})."
     )
     fallback_model = UNet(in_channels=3, out_channels=1)
     fallback_model.to(device)
@@ -129,6 +153,10 @@ def predict(image):
 
     Returns:
         Binary mask as numpy array of shape (H, W), uint8 with values 0 or 255.
+
+    Notes:
+        Set AVS_THRESHOLD to override the default threshold (0.65), for example:
+        AVS_THRESHOLD=0.60
     """
     if not isinstance(image, np.ndarray):
         image = np.asarray(image)
@@ -173,7 +201,7 @@ def predict(image):
         probs = torch.sigmoid(avg_logits)
 
     # Threshold to a binary mask.
-    threshold = 0.65
+    threshold = _inference_threshold
     binary = (probs > threshold).to(torch.uint8)
 
     # Resize back to original image size using nearest-neighbor.

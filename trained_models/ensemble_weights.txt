@@ -1,0 +1,2 @@
+trained_models/A_best.pth
+trained_models/C_best.pth

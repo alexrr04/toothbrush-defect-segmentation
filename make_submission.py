@@ -52,6 +52,13 @@ def main():
                 d for d in dirs if not d.startswith(".") and d not in ignore_dirs
             ]
 
+            # Keep submission lean by dropping local threshold tuning artifacts.
+            if os.path.normpath(root) in {
+                "trained_models",
+                os.path.join(".", "trained_models"),
+            }:
+                dirs[:] = [d for d in dirs if not d.startswith("tune_")]
+
             for file in files:
                 if (
                     file.startswith(".")
