@@ -1,0 +1,193 @@
+{
+  "csv_path": "data/toothbrush_dataset/validation.csv",
+  "n_images": 9,
+  "image_level": {
+    "confusion_matrix": {
+      "tp": 3,
+      "fp": 0,
+      "tn": 6,
+      "fn": 0
+    },
+    "metrics": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "iou": 1.0
+    }
+  },
+  "pixel_level": {
+    "confusion_matrix": {
+      "tp": 35882,
+      "fp": 2696,
+      "tn": 9393224,
+      "fn": 5382
+    },
+    "metrics": {
+      "accuracy": 0.999144024319119,
+      "precision": 0.9301156099331225,
+      "recall": 0.8695715393563397,
+      "f1": 0.8988251797299667,
+      "iou": 0.8162420382165605
+    }
+  },
+  "segmentation_summary": {
+    "mean_iou_all": 0.9254347432815759,
+    "mean_f1_all": 0.2906853336476796,
+    "mean_iou_defective_only": 0.7763042298447277,
+    "mean_f1_defective_only": 0.8720560009430388
+  },
+  "failure_analysis": {
+    "n_image_level_misclassified": 0,
+    "misclassified_images": [],
+    "worst_iou_defective": [
+      {
+        "index": 8,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/defective/001.png",
+        "mask_path": "data/toothbrush_dataset/toothbrush/ground_truth/defective/001_mask.png",
+        "true_defective": 1,
+        "pred_defective": 1,
+        "iou": 0.6791265729089563,
+        "f1": 0.8089045624862243,
+        "gt_positive_pixels": 5034,
+        "pred_positive_pixels": 4040,
+        "fp_pixels": 370,
+        "fn_pixels": 1364
+      },
+      {
+        "index": 4,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/defective/016.png",
+        "mask_path": "data/toothbrush_dataset/toothbrush/ground_truth/defective/016_mask.png",
+        "true_defective": 1,
+        "pred_defective": 1,
+        "iou": 0.7894464562855664,
+        "f1": 0.8823359352413992,
+        "gt_positive_pixels": 12393,
+        "pred_positive_pixels": 11820,
+        "fp_pixels": 1138,
+        "fn_pixels": 1711
+      },
+      {
+        "index": 1,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/defective/000.png",
+        "mask_path": "data/toothbrush_dataset/toothbrush/ground_truth/defective/000_mask.png",
+        "true_defective": 1,
+        "pred_defective": 1,
+        "iou": 0.8603396603396604,
+        "f1": 0.9249275051014929,
+        "gt_positive_pixels": 23837,
+        "pred_positive_pixels": 22718,
+        "fp_pixels": 1188,
+        "fn_pixels": 2307
+      }
+    ],
+    "worst_false_positives_on_good": [
+      {
+        "index": 2,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/good/012.png",
+        "mask_path": "",
+        "true_defective": 0,
+        "pred_defective": 0,
+        "iou": 1.0,
+        "f1": 0.0,
+        "gt_positive_pixels": 0,
+        "pred_positive_pixels": 0,
+        "fp_pixels": 0,
+        "fn_pixels": 0
+      },
+      {
+        "index": 3,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/good/058.png",
+        "mask_path": "",
+        "true_defective": 0,
+        "pred_defective": 0,
+        "iou": 1.0,
+        "f1": 0.0,
+        "gt_positive_pixels": 0,
+        "pred_positive_pixels": 0,
+        "fp_pixels": 0,
+        "fn_pixels": 0
+      },
+      {
+        "index": 5,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/good/017.png",
+        "mask_path": "",
+        "true_defective": 0,
+        "pred_defective": 0,
+        "iou": 1.0,
+        "f1": 0.0,
+        "gt_positive_pixels": 0,
+        "pred_positive_pixels": 0,
+        "fp_pixels": 0,
+        "fn_pixels": 0
+      },
+      {
+        "index": 6,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/good/025.png",
+        "mask_path": "",
+        "true_defective": 0,
+        "pred_defective": 0,
+        "iou": 1.0,
+        "f1": 0.0,
+        "gt_positive_pixels": 0,
+        "pred_positive_pixels": 0,
+        "fp_pixels": 0,
+        "fn_pixels": 0
+      },
+      {
+        "index": 7,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/good/043.png",
+        "mask_path": "",
+        "true_defective": 0,
+        "pred_defective": 0,
+        "iou": 1.0,
+        "f1": 0.0,
+        "gt_positive_pixels": 0,
+        "pred_positive_pixels": 0,
+        "fp_pixels": 0,
+        "fn_pixels": 0
+      }
+    ],
+    "worst_false_negatives_on_defective": [
+      {
+        "index": 1,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/defective/000.png",
+        "mask_path": "data/toothbrush_dataset/toothbrush/ground_truth/defective/000_mask.png",
+        "true_defective": 1,
+        "pred_defective": 1,
+        "iou": 0.8603396603396604,
+        "f1": 0.9249275051014929,
+        "gt_positive_pixels": 23837,
+        "pred_positive_pixels": 22718,
+        "fp_pixels": 1188,
+        "fn_pixels": 2307
+      },
+      {
+        "index": 4,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/defective/016.png",
+        "mask_path": "data/toothbrush_dataset/toothbrush/ground_truth/defective/016_mask.png",
+        "true_defective": 1,
+        "pred_defective": 1,
+        "iou": 0.7894464562855664,
+        "f1": 0.8823359352413992,
+        "gt_positive_pixels": 12393,
+        "pred_positive_pixels": 11820,
+        "fp_pixels": 1138,
+        "fn_pixels": 1711
+      },
+      {
+        "index": 8,
+        "image_path": "data/toothbrush_dataset/toothbrush/train/defective/001.png",
+        "mask_path": "data/toothbrush_dataset/toothbrush/ground_truth/defective/001_mask.png",
+        "true_defective": 1,
+        "pred_defective": 1,
+        "iou": 0.6791265729089563,
+        "f1": 0.8089045624862243,
+        "gt_positive_pixels": 5034,
+        "pred_positive_pixels": 4040,
+        "fp_pixels": 370,
+        "fn_pixels": 1364
+      }
+    ]
+  }
+}

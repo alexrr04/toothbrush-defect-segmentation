@@ -1,11 +1,13 @@
 import csv
 import json
 import os
+import random
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch as tc
 import torch.nn as nn
 import torch.optim as optim
@@ -53,6 +55,25 @@ def build_criterion(loss_name, pos_weight):
     if loss_name == "bce_dice":
         return BCEPlusDiceLoss(bce_weight=0.5, pos_weight=pos_weight)
     raise ValueError(f"Unsupported loss_name: {loss_name}")
+
+
+def _set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    tc.manual_seed(seed)
+    if tc.cuda.is_available():
+        tc.cuda.manual_seed(seed)
+        tc.cuda.manual_seed_all(seed)
+
+    # Favor determinism for fair seed-based model comparison.
+    tc.backends.cudnn.deterministic = True
+    tc.backends.cudnn.benchmark = False
+
+
+def _seed_worker(worker_id):
+    worker_seed = tc.initial_seed() % (2**32)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 def _load_yaml_config(config_path):
@@ -156,6 +177,7 @@ def train_model(
     resume_checkpoint_path=None,
     save_improvement_checkpoints=True,
     cleanup_resume_checkpoint_on_success=True,
+    seed=None,
 ):
     """
     Training loop for the U-Net model.
@@ -207,8 +229,25 @@ def train_model(
         start_epoch = int(checkpoint.get("epoch", 0))
         best_val_loss = float(checkpoint.get("best_val_loss", float("inf")))
         best_epoch = int(checkpoint.get("best_epoch", 0))
-        epochs_without_improvement = int(checkpoint.get("epochs_without_improvement", 0))
+        epochs_without_improvement = int(
+            checkpoint.get("epochs_without_improvement", 0)
+        )
         history = checkpoint.get("history", [])
+
+        # Restore RNG state to continue run deterministically after interruption.
+        python_rng_state = checkpoint.get("python_rng_state")
+        numpy_rng_state = checkpoint.get("numpy_rng_state")
+        torch_rng_state = checkpoint.get("torch_rng_state")
+        cuda_rng_state = checkpoint.get("cuda_rng_state")
+
+        if python_rng_state is not None:
+            random.setstate(python_rng_state)
+        if numpy_rng_state is not None:
+            np.random.set_state(numpy_rng_state)
+        if torch_rng_state is not None:
+            tc.set_rng_state(torch_rng_state)
+        if cuda_rng_state is not None and tc.cuda.is_available():
+            tc.cuda.set_rng_state_all(cuda_rng_state)
 
         print(
             f"Resumed from {resume_path} at epoch {start_epoch}/{epochs}. "
@@ -313,6 +352,13 @@ def train_model(
                 "best_epoch": best_epoch,
                 "epochs_without_improvement": epochs_without_improvement,
                 "history": history,
+                "seed": seed,
+                "python_rng_state": random.getstate(),
+                "numpy_rng_state": np.random.get_state(),
+                "torch_rng_state": tc.get_rng_state(),
+                "cuda_rng_state": tc.cuda.get_rng_state_all()
+                if tc.cuda.is_available()
+                else None,
             },
             resume_path,
         )
@@ -325,6 +371,7 @@ def train_model(
         "best_val_loss": best_val_loss,
         "best_epoch": best_epoch,
         "epochs_ran": len(history),
+        "seed": seed,
         "best_model_path": str(best_save_path),
         "last_model_path": str(last_save_path),
         "resume_checkpoint_path": str(resume_path),
@@ -354,6 +401,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--patience", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--loss", choices=["bce", "bce_dice"], default=None)
     parser.add_argument(
         "--pos-weight",
@@ -382,6 +430,7 @@ def main():
         "output_root": "trained_runs",
         "run_name": None,
         "pos_weight": None,
+        "seed": 42,
         "resume": False,
         "resume_checkpoint": None,
         "save_improvement_checkpoints": True,
@@ -403,6 +452,8 @@ def main():
         config["learning_rate"] = args.lr
     if args.patience is not None:
         config["early_stopping_patience"] = args.patience
+    if args.seed is not None:
+        config["seed"] = args.seed
     if args.loss is not None:
         config["loss_name"] = args.loss
     if args.pos_weight is not None:
@@ -425,10 +476,13 @@ def main():
     epochs = int(config["epochs"])
     learning_rate = float(config["learning_rate"])
     early_stopping_patience = int(config["early_stopping_patience"])
+    seed = int(config["seed"])
     loss_name = config["loss_name"]
 
     device = tc.device("cuda" if tc.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    _set_global_seed(seed)
+    print(f"Using seed: {seed}")
 
     if not os.path.exists(train_csv):
         raise FileNotFoundError(f"Missing {train_csv}. Run prepare_data.py first.")
@@ -492,11 +546,24 @@ def main():
     val_dataset = ToothbrushSegmentationDataset(val_csv, transforms=test_transforms)
     test_dataset = ToothbrushSegmentationDataset(test_csv, transforms=test_transforms)
 
+    data_loader_generator = tc.Generator()
+    data_loader_generator.manual_seed(seed)
+
     train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=2
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        worker_init_fn=_seed_worker,
+        generator=data_loader_generator,
     )
     val_loader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False, num_workers=2
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        worker_init_fn=_seed_worker,
+        generator=data_loader_generator,
     )
     print(
         f"Loaded {len(train_dataset)} training, {len(val_dataset)} validation, "
@@ -547,6 +614,7 @@ def main():
         cleanup_resume_checkpoint_on_success=bool(
             config.get("cleanup_resume_checkpoint_on_success", True)
         ),
+        seed=seed,
     )
 
 

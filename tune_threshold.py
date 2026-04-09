@@ -57,8 +57,14 @@ def main():
     )
     parser.add_argument(
         "--weights",
-        default=os.path.join("trained_models", "best_unet_model.pth"),
-        help="Path to model weights checkpoint to evaluate.",
+        nargs="+",
+        default=[os.path.join("trained_models", "best_unet_model.pth")],
+        help="One or more model checkpoint paths to evaluate (ensemble if multiple).",
+    )
+    parser.add_argument(
+        "--weights-file",
+        default=None,
+        help="Optional text file with one checkpoint path per line.",
     )
     parser.add_argument(
         "--output-dir",
@@ -72,22 +78,49 @@ def main():
         print(f"Error: {split_csv} not found. Run prepare_data.py first.")
         return
 
-    weights_path = args.weights
-    if not os.path.exists(weights_path):
-        print(f"Error: Weights file not found: {weights_path}")
+    weights_paths = []
+    for path in args.weights:
+        if os.path.exists(path):
+            weights_paths.append(path)
+        else:
+            print(f"Warning: Weights file not found and will be skipped: {path}")
+
+    if args.weights_file is not None:
+        if not os.path.exists(args.weights_file):
+            print(f"Error: weights-file not found: {args.weights_file}")
+            return
+        with open(args.weights_file, "r", encoding="utf-8") as file:
+            for raw_line in file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if os.path.exists(line):
+                    weights_paths.append(line)
+                else:
+                    print(f"Warning: Listed weights not found and skipped: {line}")
+
+    # Preserve order and drop duplicates.
+    weights_paths = list(dict.fromkeys(weights_paths))
+    if not weights_paths:
+        print("Error: No valid checkpoints were provided for threshold tuning.")
         return
 
-    output_dir = args.output_dir or os.path.dirname(weights_path) or "."
+    output_dir = args.output_dir or os.path.dirname(weights_paths[0]) or "."
     output_dir_path = Path(output_dir)
     output_dir_path.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net = UNet(in_channels=3, out_channels=1).to(device)
-    net.load_state_dict(torch.load(weights_path, map_location=device))
-    net.eval()
+    models = []
+    for weights_path in weights_paths:
+        net = UNet(in_channels=3, out_channels=1).to(device)
+        net.load_state_dict(torch.load(weights_path, map_location=device))
+        net.eval()
+        models.append(net)
 
     print(f"Using device: {device}")
-    print(f"Loaded model weights: {weights_path}")
+    print(f"Loaded {len(models)} model(s) for threshold tuning")
+    for idx, path in enumerate(weights_paths, start=1):
+        print(f"  [{idx}] {path}")
 
     csv_name = os.path.basename(split_csv).lower()
     if csv_name == "testing.csv":
@@ -129,8 +162,15 @@ def main():
         )
 
         with torch.no_grad():
-            logits = net(img_tensor)
-            probs = torch.sigmoid(logits)
+            logits_sum = None
+            for net in models:
+                logits = net(img_tensor)
+                if logits_sum is None:
+                    logits_sum = logits
+                else:
+                    logits_sum = logits_sum + logits
+            avg_logits = logits_sum / len(models)
+            probs = torch.sigmoid(avg_logits)
 
         # Resize back to original
         probs_resized = F.interpolate(probs.float(), size=(h, w), mode="nearest")
@@ -195,7 +235,7 @@ def main():
     with open(best_path, "w", encoding="utf-8") as file:
         json.dump(
             {
-                "weights_path": str(weights_path),
+                "weights_paths": [str(p) for p in weights_paths],
                 "csv_split": str(split_csv),
                 "best_threshold": float(best_threshold),
                 "mean_iou": best_iou,

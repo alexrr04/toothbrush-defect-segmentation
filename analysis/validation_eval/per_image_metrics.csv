@@ -1,0 +1,10 @@
+index,image_path,mask_path,true_defective,pred_defective,iou,f1,gt_positive_pixels,pred_positive_pixels,fp_pixels,fn_pixels
+1,data/toothbrush_dataset/toothbrush/train/defective/000.png,data/toothbrush_dataset/toothbrush/ground_truth/defective/000_mask.png,1,1,0.8603396603396604,0.9249275051014929,23837,22718,1188,2307
+2,data/toothbrush_dataset/toothbrush/train/good/012.png,,0,0,1.0,0.0,0,0,0,0
+3,data/toothbrush_dataset/toothbrush/train/good/058.png,,0,0,1.0,0.0,0,0,0,0
+4,data/toothbrush_dataset/toothbrush/train/defective/016.png,data/toothbrush_dataset/toothbrush/ground_truth/defective/016_mask.png,1,1,0.7894464562855664,0.8823359352413992,12393,11820,1138,1711
+5,data/toothbrush_dataset/toothbrush/train/good/017.png,,0,0,1.0,0.0,0,0,0,0
+6,data/toothbrush_dataset/toothbrush/train/good/025.png,,0,0,1.0,0.0,0,0,0,0
+7,data/toothbrush_dataset/toothbrush/train/good/043.png,,0,0,1.0,0.0,0,0,0,0
+8,data/toothbrush_dataset/toothbrush/train/defective/001.png,data/toothbrush_dataset/toothbrush/ground_truth/defective/001_mask.png,1,1,0.6791265729089563,0.8089045624862243,5034,4040,370,1364
+9,data/toothbrush_dataset/toothbrush/train/good/034.png,,0,0,1.0,0.0,0,0,0,0

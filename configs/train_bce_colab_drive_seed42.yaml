@@ -7,7 +7,7 @@ seed: 42
 loss_name: bce
 pos_weight: null
 output_root: /content/drive/MyDrive/avs-miniproject-1-runs
-run_name: bce_ablation
+run_name: bce_ablation_seed42
 resume: false
 resume_checkpoint: null
 save_improvement_checkpoints: true
