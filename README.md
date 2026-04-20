@@ -1,6 +1,6 @@
-# avs-miniproject-1
+# toothbrush-defect-segmentation
 
-Advanced Vision Systems mini-project: toothbrush defect segmentation with U-Net.
+Advanced Vision Systems course project: toothbrush defect segmentation with U-Net.
 
 ## Installation
 
